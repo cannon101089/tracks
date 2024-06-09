@@ -3,6 +3,9 @@ package junction
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/airchains-network/decentralized-sequencer/junction/types"
 	logs "github.com/airchains-network/decentralized-sequencer/log"
 	"github.com/airchains-network/decentralized-sequencer/node/shared"
@@ -11,8 +14,6 @@ import (
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"os"
-	"time"
 )
 
 func VerifyCurrentPod() (success bool) {
@@ -84,6 +85,13 @@ func VerifyCurrentPod() (success bool) {
 
 	// check if pod is already verified
 	podDetails := QueryPod(podNumber)
+
+	// try 1 more time
+	if podDetails == nil {
+		time.Sleep(10 * time.Second)
+		podDetails = QueryPod(podNumber)
+	}
+
 	if podDetails == nil {
 		// pod already submitted
 		log.Debug().Str("module", "junction").Msg("TxError: Pod not submitted, can not verify")

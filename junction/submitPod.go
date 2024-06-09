@@ -3,6 +3,10 @@ package junction
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/airchains-network/decentralized-sequencer/junction/types"
 	logs "github.com/airchains-network/decentralized-sequencer/log"
 	"github.com/airchains-network/decentralized-sequencer/node/shared"
@@ -11,8 +15,6 @@ import (
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"os"
-	"time"
 )
 
 func SubmitCurrentPod() (success bool) {
@@ -64,7 +66,7 @@ func SubmitCurrentPod() (success bool) {
 	}
 
 	ctx := context.Background()
-	gas := utilis.GenerateRandomWithFavour(100, 300, [2]int{120, 250}, 0.7)
+	gas := utilis.GenerateRandomWithFavour(510, 1000, [2]int{520, 700}, 0.7)
 	gasFees := fmt.Sprintf("%damf", gas)
 	log.Info().Str("module", "junction").Str("Gas Fees Used to Validate VRF", gasFees)
 	accountClient, err := cosmosclient.New(ctx, cosmosclient.WithAddressPrefix(addressPrefix), cosmosclient.WithNodeAddress(jsonRpc), cosmosclient.WithHome(accountPath), cosmosclient.WithGas("auto"), cosmosclient.WithFees(gasFees))
@@ -104,6 +106,16 @@ func SubmitCurrentPod() (success bool) {
 
 			log.Debug().Str("module", "junction").Msg("Retrying SubmitPod transaction after 10 seconds..")
 			time.Sleep(10 * time.Second)
+			if strings.Contains(errStr, "insufficient fee") {
+				os.Exit(1)
+			}
+
+			if strings.Contains(errStr, "invalid request") {
+				// call rollback //
+				//PodStateRollback(3)
+				os.Exit(1)
+			}
+
 			//return false
 		} else {
 			// update txHash of submit pod in pod state

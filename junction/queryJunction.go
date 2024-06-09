@@ -2,6 +2,7 @@ package junction
 
 import (
 	"context"
+
 	"github.com/airchains-network/decentralized-sequencer/junction/types"
 	logs "github.com/airchains-network/decentralized-sequencer/log"
 	"github.com/airchains-network/decentralized-sequencer/node/shared"
@@ -56,7 +57,7 @@ func QueryPod(podNumber uint64) (pod *types.Pods) {
 	queryClient := types.NewQueryClient(client.Context())
 	queryResp, err := queryClient.GetPod(ctx, &types.QueryGetPodRequest{StationId: stationId, PodNumber: podNumber})
 	if err != nil {
-		//logs.Log.Error("Error fetching VRF: " + err.Error())
+		logs.Log.Error("Error fetching VRF: " + err.Error())
 		return nil
 	}
 
@@ -80,6 +81,7 @@ func QueryLatestVerifiedBatch() uint64 {
 	queryClient := types.NewQueryClient(client.Context())
 	queryResp, err := queryClient.GetLatestVerifiedPodNumber(ctx, &types.QueryGetLatestVerifiedPodNumberRequest{StationId: stationId})
 	if err != nil {
+		logs.Log.Error("Error fetching LatestVerifiedPodNumber : " + err.Error())
 		return 0
 	}
 

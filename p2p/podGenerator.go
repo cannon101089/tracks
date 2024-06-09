@@ -3,6 +3,13 @@ package p2p
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/airchains-network/decentralized-sequencer/da/avail"
 	"github.com/airchains-network/decentralized-sequencer/da/celestia"
 	"github.com/airchains-network/decentralized-sequencer/da/eigen"
@@ -15,12 +22,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"math/rand"
-	"os"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 )
 
 func BatchGeneration(wg *sync.WaitGroup) {
@@ -40,14 +41,14 @@ func GenerateUnverifiedPods() {
 	txnDBConnection := connection.GetTxnDatabaseConnection()
 
 	rawConfirmedTransactionIndex, err := GetValueOrDefault(staticDBConnection, []byte(BatchStartIndexKey), []byte("0"))
-	CheckErrorAndExit(err, "Error in getting confirmedTransactionIndex from static db", 0)
+	CheckErrorAndExit(err, "Error in getting confirmedTransactionIndex from static db", 1)
 
 	rawCurrentPodNumber, err := GetValueOrDefault(staticDBConnection, []byte(BatchCountKey), []byte("0"))
-	CheckErrorAndExit(err, "Error in getting currentPodNumber from static db", 0)
+	CheckErrorAndExit(err, "Error in getting currentPodNumber from static db", 1)
 
 	//previousStateData
 	podStateData, err := GetPodStateFromDatabase()
-	CheckErrorAndExit(err, "Error in getting previous station data", 0)
+	CheckErrorAndExit(err, "Error in getting previous station data", 1)
 
 	var (
 		previousTrackAppHash []byte
@@ -69,7 +70,7 @@ func GenerateUnverifiedPods() {
 	if currentPodNumber == 0 {
 		currentPodNumber = 1
 	}
-
+	// check if podData == nil ? what todo ???
 	podData := junction.QueryPod(uint64(currentPodNumber))
 	if podData != nil {
 		if podData.IsVerified == true {
@@ -95,10 +96,10 @@ func GenerateUnverifiedPods() {
 
 		if stationVariantLowerCase == "evm" {
 			witness, uZKP, MRH, batchInput, err = createEVMPOD(txnDBConnection, rawConfirmedTransactionIndex, rawCurrentPodNumber)
-			CheckErrorAndExit(err, "Error in creating POD", 0)
+			CheckErrorAndExit(err, "Error in creating POD", 1)
 		} else if stationVariantLowerCase == "wasm" {
 			witness, uZKP, MRH, batchInput, err = createWasmPOD(txnDBConnection, rawConfirmedTransactionIndex, rawCurrentPodNumber)
-			CheckErrorAndExit(err, "Error in creating POD", 0)
+			CheckErrorAndExit(err, "Error in creating POD", 1)
 		}
 
 		trackAppHash = generatePodHash(witness, uZKP, MRH, rawCurrentPodNumber)
@@ -116,7 +117,7 @@ func GenerateUnverifiedPods() {
 
 	selectedMaster := MasterTracksSelection(Node, string(previousTrackAppHash))
 	decodedMaster, err := peer.Decode(selectedMaster)
-	CheckErrorAndExit(err, "Error in decoding master", 0)
+	CheckErrorAndExit(err, "Error in decoding master", 1)
 
 	if decodedMaster == Node.ID() {
 		podState := shared.GetPodState()
@@ -146,20 +147,20 @@ func GenerateUnverifiedPods() {
 			_, err := json.Marshal(finalizeDA)
 			if err != nil {
 				logs.Log.Error("Error marshaling da data: " + err.Error())
-				return
+				os.Exit(1)
 			}
 
 			addr, err := junction.GetAddress()
 			if err != nil {
 				logs.Log.Error("Error in getting address")
-				return
+				os.Exit(1)
 			}
 
 			if shared.GetPodState().LatestTxState == shared.TxStateInitVRF {
 				success, _ := junction.InitVRF()
 				if !success {
 					logs.Log.Error("Failed to Init VRF")
-					return
+					os.Exit(1)
 				}
 				updateTxState(shared.TxStateVerifyVRF)
 			} else {
@@ -172,7 +173,7 @@ func GenerateUnverifiedPods() {
 				success := junction.ValidateVRF(addr)
 				if !success {
 					logs.Log.Error("Failed to Validate VRF")
-					return
+					os.Exit(1)
 				}
 				updateTxState(shared.TxStateSubmitPod)
 
@@ -181,11 +182,11 @@ func GenerateUnverifiedPods() {
 				vrfRecord = junction.QueryVRF()
 				if vrfRecord == nil {
 					logs.Log.Error("VRF record is nil")
-					return
+					os.Exit(1)
 				}
 				if !vrfRecord.IsVerified {
 					logs.Log.Error("Verification of VRF is failed, need Voting for correct VRN")
-					return
+					os.Exit(1)
 				}
 			} else {
 				log.Debug().Str("module", "p2p").Msg("VRF is already validated, moving to next step")
@@ -356,7 +357,7 @@ func GenerateUnverifiedPods() {
 				success := junction.SubmitCurrentPod()
 				if !success {
 					logs.Log.Error("Failed to submit pod")
-					return
+					os.Exit(1)
 				}
 				updateTxState(shared.TxStateVerifyPod)
 			} else {
@@ -369,7 +370,7 @@ func GenerateUnverifiedPods() {
 				success := junction.VerifyCurrentPod()
 				if !success {
 					logs.Log.Error("Failed to Transact Verify pod")
-					return
+					os.Exit(1)
 				}
 				updateTxState(shared.TxStatePreInit)
 			} else {
