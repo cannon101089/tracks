@@ -2,6 +2,8 @@ package junction
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/airchains-network/decentralized-sequencer/junction/types"
 	logs "github.com/airchains-network/decentralized-sequencer/log"
@@ -55,10 +57,28 @@ func QueryPod(podNumber uint64) (pod *types.Pods) {
 	}
 
 	queryClient := types.NewQueryClient(client.Context())
-	queryResp, err := queryClient.GetPod(ctx, &types.QueryGetPodRequest{StationId: stationId, PodNumber: podNumber})
-	if err != nil {
-		logs.Log.Error("Error fetching VRF: " + err.Error())
-		return nil
+
+	tried := 0
+	var queryResp *types.QueryGetPodResponse
+	var errQuery error
+	for {
+		queryResp, errQuery = queryClient.GetPod(ctx, &types.QueryGetPodRequest{StationId: stationId, PodNumber: podNumber})
+
+		if errQuery == nil {
+			break
+		}
+		errStr := errQuery.Error()
+		if strings.Contains(errStr, "desc = Pod Not found") {
+			return nil
+		}
+
+		logs.Log.Error("Error fetching VRF: " + errStr)
+		time.Sleep(5 * time.Second)
+		tried++
+		if tried > 5 {
+			logs.Log.Error("Error fetching VRF: tried exceed " + errStr)
+			return nil
+		}
 	}
 
 	return queryResp.Pod
